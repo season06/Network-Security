@@ -1,0 +1,43 @@
+# syslog:
+	/var/log/syslog
+# clean syslog:
+	$ rm -f syslog 
+	$ service syslog restart
+# ipt_log:
+	/proc/net/xt_/***
+# check port is open or not:
+	$ tcping ip port
+# check packge:
+	$ tcpdump
+
+iptables -A INPUT -i enp0s3 -p tcp -m multiport --dports 22,80 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o enp0s3 -p tcp -m multiport --sports 22,80 -m state --state ESTABLISHED -j ACCEPT
+
+# ping
+iptables -N ping
+iptables -A ping -m recent --rcheck --seconds 60 --hitcount 1 --name PING_log -j DROP
+iptables -A ping -m recent --set --name PING_log
+iptables -A INPUT -p icmp --icmp-type 8 -m state --state ESTABLISHED,RELATED -j ping
+
+# ssh
+iptables -N ssh
+iptables -A ssh -m recent --update --seconds 270 --hitcount 3 --name SSH_attack --rsource -j LOG --log-prefix 'SSH attack: '
+iptables -A ssh -m recent --update --seconds 270 --hitcount 3 --name SSH_attack --rsource -j REJECT
+iptables -A ssh -m recent --set --name SSH_attack
+iptables -A INPUT -p tcp --dport 22 -m state --state NEW -j ssh
+
+# connct number
+iptables -A INPUT -p tcp --syn --dport 80 -m connlimit --connlimit-above 20 -j LOG --log-prefix 'Connect many times: '
+iptables -A INPUT -p tcp --syn --dport 80 -m connlimit --connlimit-above 20 -j REJECT --reject-with tcp-reset
+
+# hashlimit
+iptables -N syn_flood
+iptables -A syn_flood -p tcp -m hashlimit --hashlimit-name synflood --hashlimit-above 5/s --hashlimit-burst 10 --hashlimit-mode srcip -j RETURN
+iptables -A syn_flood -p tcp -j DROP
+iptables -I INPUT -j syn_flood
+
+# save iptables command
+	$ sudo apt install iptables-persistent
+	-> /etc/iptables/rules.v4(rules.v6)
+# resave iptables rules
+	$ sudo dpkg-reconfigure iptables-persistent
